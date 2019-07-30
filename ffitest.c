@@ -1,6 +1,6 @@
 /* s7 ffi tester
  *
- * gcc -o ffitest ffitest.c -g3 -Wall s7.o -lm -I. -ldl
+ * gcc -o ffitest ffitest.c -g3 -Wall s7.o -lm -I. -ldl -Wl,-export-dynamic
  */
 
 #include <stdlib.h>
@@ -405,6 +405,20 @@ static s7_pointer int_list(s7_scheme *sc, s7_int len)
     s7_set_car(result, s7_cons(sc, s7_make_integer(sc, i), s7_car(result)));
   s7_gc_unprotect_at(sc, gc_loc);
   return(s7_reverse(sc, s7_car(result)));
+}
+
+static const char *pretty_print(s7_scheme *sc, s7_pointer obj) /* (pretty-print obj) */
+{
+  return(s7_string(
+          s7_eval_c_string_with_environment(sc,
+            "(catch #t                                \
+               (lambda ()                             \
+                 (unless (defined? 'pp)		      \
+                   (load \"/home/bil/cl/write.scm\")) \
+                 (pp obj))			      \
+               (lambda (type info)		      \
+                 (apply format #f info)))",
+	   s7_inlet(sc, s7_list(sc, 1, s7_cons(sc, s7_make_symbol(sc, "obj"), obj))))));
 }
 
 int main(int argc, char **argv)
@@ -1338,7 +1352,7 @@ int main(int argc, char **argv)
 
 	s7_load(sc, "ffitest.scm");
 	if (!s7_is_defined(sc, "loaded_var"))
-	  {fprintf(stderr, "%d: load unhappy?\n", __LINE__);}
+	  {fprintf(stderr, "%d: load ffitest.scm unhappy?\n", __LINE__);}
 	else
 	  {
 	    if (s7_integer(p = s7_name_to_value(sc, "loaded_var")) != 321)
@@ -1376,6 +1390,27 @@ int main(int argc, char **argv)
 	      }
 	  }
       }
+
+    {
+      s7_pointer e, val;
+      e = s7_inlet(sc, s7_nil(sc));
+      gc_loc = s7_gc_protect(sc, e);
+      val = s7_load_with_environment(sc, "~/ffitest.scm", e);
+      if (val)
+	fprintf(stderr, "%d: load ~/ffitest.scm found!?\n", __LINE__);
+      val = s7_load_with_environment(sc, "~/cl/ffitest.scm", e);
+      if (!val)
+	fprintf(stderr, "%d: load ~/cl/ffitest.scm not found\n", __LINE__);
+      else
+	{
+	  if (s7_symbol_local_value(sc, s7_make_symbol(sc, "loaded_var"), e) == s7_undefined(sc))
+	    {fprintf(stderr, "%d: load ~/ffitest.scm unhappy? %s\n", __LINE__, s1 = TO_STR(e)); free(s1);}
+	}
+      val = s7_load(sc, "/home/bil/snd-motif/");
+      if (val)
+	fprintf(stderr, "s7_load(directory) did not fail?\n");
+      s7_gc_unprotect_at(sc, gc_loc);
+    }
 
     port = s7_open_input_string(sc, "(+ 1 2)");
     if (!s7_is_input_port(sc, port))
@@ -1766,7 +1801,49 @@ int main(int argc, char **argv)
     {fprintf(stderr, "%d: sym val: %s\n", __LINE__, s1 = TO_STR(set_val)); free(s1);}
   if (set_sym != s7_make_symbol(sc, "notified-var"))
     {fprintf(stderr, "%d: sym: %s\n", __LINE__, s1 = TO_STR(set_sym)); free(s1);}
-    
+
+  {
+    s7_pointer e, val;
+    e = s7_inlet(sc, s7_list(sc, 2, s7_make_symbol(sc, "init_func"), s7_make_symbol(sc, "block_init")));
+    gc_loc = s7_gc_protect(sc, e);
+    val = s7_load_with_environment(sc, "s7test-block.so", e);
+    if (!val)
+      fprintf(stderr, "can't load s7test-block.so\n");
+    s7_gc_unprotect_at(sc, gc_loc);
+  }
+
+  {
+    s7_pointer body, err, result;
+    body = s7_eval_c_string(sc, "(lambda () (+ 1 2))");
+    err = s7_eval_c_string(sc, "(lambda (type info) 'oops)");
+    result = s7_call_with_catch(sc, s7_t(sc), body, err);
+    if ((!s7_is_integer(result)) || (s7_integer(result) != 3))
+      {fprintf(stderr, "catch (3): %s\n", s1 = TO_STR(result)); free(s1);}
+
+    body = s7_eval_c_string(sc, "(lambda () (+ #f 2))");
+    err = s7_eval_c_string(sc, "(lambda (type info) 'oops)");
+    result = s7_call_with_catch(sc, s7_t(sc), body, err);
+    if (result != s7_make_symbol(sc, "oops"))
+      {fprintf(stderr, "catch (oops): %s\n", s1 = TO_STR(result)); free(s1);}
+  }
+
+  {
+    const char *str;
+    s7_pointer obj;
+    obj = s7_eval_c_string(sc, "'(* 3 (+ 1 2))");
+    gc_loc = s7_gc_protect(sc, obj);
+    str = pretty_print(sc, obj);
+    s7_gc_unprotect_at(sc, gc_loc);
+    if ((!str) || (strcmp(str, "(* 3 (+ 1 2))") != 0))
+      fprintf(stderr, "pretty_print: \"%s\"\n", str);
+  }
+#if 0
+  {
+    int i;
+    for (i = 0; i < 1000000; i++)
+      s7_eval_c_string(sc, "(let ((a 1)) (+ a 1))");
+  }
+#endif
   return(0);
 }
 

@@ -276,8 +276,7 @@ indented and on a sort of brownish background.
 The basic integer and real
 types are defined in s7.h, defaulting to int64_t and double.  
 A ratio consists of two integers, a complex number two reals.
-pi is predefined, as are
-most-positive-fixnum and most-negative-fixnum.
+pi is predefined.
 s7 can be built with multiprecision support 
 for all types,  using the gmp, mpfr, and mpc libraries (set WITH_GMP to 1 in s7.c).  
 If multiprecision arithmetic is
@@ -380,7 +379,6 @@ s7 includes:
 
 <p>
 The random function can take any numeric argument, including 0.
-The following constants are predefined: pi, most-positive-fixnum, most-negative-fixnum.
 Other math-related differences between s7 and r5rs:
 </p>
 
@@ -1775,7 +1773,7 @@ evaluate their first argument, but set! does not (with a quibble; see below):
 </pre>
 
 <p>set! looks at its first argument to decide what to set.
-If it's a symbol, no problem.  If it's a list, set! looks at its car to see if it is
+If it's a symbol, no problem.  If it's a pair, set! looks at its car to see if it is
 some object that has a setter.  If the car is itself a list, set! evaluates the internal
 expression, and tries again.  So the second case above is the only one that won't work.
 And of course:
@@ -2022,9 +2020,12 @@ s7_ints, s7_doubles, or unsigned bytes.
 <p>In addition to the dimension list mentioned above, make-vector accepts
 optional arguments giving the initial element and the element type. If the
 type is given, every attempt to set an element of the vector first calls
-the type function on the new value.  Currently, the type function can only be a built-in
-type checking function such as integer? or symbol?.  If omitted (or set to #t),
+the type function on the new value.  
+If the type function is omitted (or set to #t),
 no type checking is performed.
+If the type function is a closure (rather than a C-defined or built-in function),
+its name must be accessible; it can't be an anonymous lambda (the signature and
+error handlers need this name).
 </p>
 
 <p>To access a vector's elements with different dimensions than the original had, use 
@@ -2468,8 +2469,9 @@ and the iterative version beats both.
 </p>
 </div>
 
-<p>The third argument, typers, sets type checkers for the keys and values in the table.
-It is a cons of the type functions (currently built-in functions only, as in vectors):
+<p>The third argument, typers, sets type checkers for the keys and values in the table,
+much like the third argument to make-vector.
+It is a cons of the type functions,
 <code>(cons symbol? integer?)</code> for example. This says that all the keys must
 be symbols and all the values integers.
 </p>
@@ -5147,10 +5149,11 @@ that method is invoked.
 <b><em class=def id="expansion">define-expansion</em></b> defines a macro that expands at read-time.
 It has the same syntax as
 define-macro, and (in normal use) the same result, but it is much faster because it expands only once.
-(See define-with-macros in s7test.scm for a way to expand macros in a function body at definition time).
+Similarly, <b>define-expansion*</b> defines a read-time macro*.
+(See also define-with-macros in s7test.scm for a way to expand macros in a function body at definition time).
 Since the reader knows almost nothing
 about the code it is reading, 
-you need to make sure the expansion is defined at the top level and that its name is unique!
+you need to make sure the expansion is defined at the top level and that its name is unique.
 The reader does know about global variables, so:
 </p>
 
@@ -5208,7 +5211,7 @@ You can do something similar with a normal macro, or make the indirection explic
 so if it does not see a list whose first element is a expansion name, it does
 not do anything special.  In the <code>(x a)</code> case above, the
 expansion happens when the code is evaluated, and the expansion result
-is simply returned, unevaluated.
+is simply returned, unevaluated.  
 </p>
 
 <p>You can also use macroexpand to cancel the evaluation of a macro's expansion:
@@ -5294,6 +5297,9 @@ hash-table-float-epsilon      1e-12 (settable, but currently limited to less tha
 bignum-precision              bits for bignum floats (128)
 float-format-precision        digits to print for floats (16)
 default-random-state          the default arg for random (settable)
+
+most-positive-fixnum          if not using gmp, the most positive integer ("fixnum" comes from CL)
+most-negative-fixnum          as above, but negative
 
 cpu-time                      run time so far
 file-names                    currently loaded files (a list)
@@ -5583,9 +5589,7 @@ dilambda and dilambda? have been reduced to trivial conveniences, so perhaps the
 removed.
 </p>
 
-<p>There are several less-than-ideal names.  Perhaps s7 should use *pi*, *most-negative-fixnum*,
-*most-positive-fixnum* (*fixleast* and *fixmost*?) so that all the built-in variables and constants have the
-same kind of name (or +pi+ to show it is a constant?).  
+<p>There are several less-than-ideal names.  
 get-output-string should be current-output-string. write-char behaves like display, not write.
 provided? should be feature? or *features* should be *provisions*.
 list-ref, list-set!, and list-tail actually only apply to pairs.
@@ -5651,7 +5655,6 @@ Better ideas are always welcome!
 <li>*stdin* *stdout* *stderr*
 <li>*s7*
 <li>nan.0 +nan.0 -nan.0 inf.0 +inf.0 -inf.0 (what crappy names! nan.0 is an inexact integer that is not a number?)
-<li>most-positive-fixnum most-negative-fixnum
 <li>*unbound-variable-hook* *missing-close-paren-hook* *load-hook* *error-hook* *read-error-hook* *rootlet-redefinition-hook*
 </ul>
 
@@ -5692,12 +5695,19 @@ This is consistent with, for example,
 <code>(eq? #f '#f)</code> which is also #t.
 The standard says "the empty list is a special object of its own type", so surely either choice is
 acceptable in that regard (but, sigh, the standard stupidly goes on to deny that () can evaluate to itself).
+The confusion appears to be caused by the word "list".  I would describe the evaluator: "if it gets a
+constant (and () is a constant) it returns that constant; if a symbol, it returns the value
+associated with that symbol; if a pair, it looks at the pair's
+car to decide what to do".  It's kinda looney to insist on looking at the car of a list when you know () has no car!
+</p>
+
+<!--
 One place where the quote matters is in a case statement; the selector is
 evaluated but the key is not:
 </p>
 
 <pre class="indented">
-&gt; (case '() ((()) 2) (else 1))
+&gt; (case '() ((()) 2) (else 1)) ; in s7 this is the same as (case () ((()) 2) (else 1))
 <em class="gray">2</em>
 &gt; (case '() (('()) 2) (else 1)) ; (eqv? '() ''()) is #f
 <em class="gray">1</em>
@@ -5707,8 +5717,9 @@ evaluated but the key is not:
 &gt; (case '#f (('#f) 2) (else 1)) ; (eqv? '#f ''#f) is #f
 <em class="gray">1</em>
 </pre>
+-->
 
-<p>Similarly, vector constants do not have to be quoted.  A list constant is quoted
+<p>Similarly, in s7, vector constants do not have to be quoted.  A list constant is quoted
 to keep it from being evaluated, but
 #(1 2 3) is as unproblematic as "123" or 123. 
 </p>
@@ -6142,7 +6153,95 @@ seconds, and after compilation (using -O2) of the chicken compiler output,
 is compiling to C. I think Guile 2.0.9 takes about 1 second.
 The equivalent in CL:
 clisp interpreted 9.3 seconds, compiled 0.85 seconds; sbcl 0.21 seconds.
+Similarly, s7 computes (fib 40) in 1.5 seconds, approximately the same as sbcl.
+Guile 2.2.3 takes 7 seconds.
 </p>
+
+<div class="separator"></div>
+<small>
+<p>
+s7's timing tests are in its tools directory.  The script
+valcall.scm runs them through callgrind.  The results
+can be found at the end of s7.c.
+If you're interested in the standard Scheme benchmarks, it
+is possible to add s7 to that package.  First, s7-prelude.scm
+and s7-postlude.scm need to be added to the benchmarks src directory.
+s7-postlude.scm can be empty.  My version of s7-prelude.scm is:
+</p>
+<pre>
+(define (this-scheme-implementation-name) "s7")
+(define exact-integer? integer?)	
+(define (exact-integer-sqrt i) (let ((sq (floor (sqrt i)))) (values sq (- i (* sq sq)))))
+(define inexact exact-&gt;inexact)
+(define exact inexact-&gt;exact)
+(define (square x) (* x x))
+(define (vector-map f v) (copy v)) ; for quicksort.scm
+(define-macro (import . args) #f)
+(define (jiffies-per-second) 1000)
+(define (current-jiffy) (round (* (jiffies-per-second) (*s7* 'cpu-time))))
+(define (current-second) (floor (*s7* 'cpu-time)))
+</pre>
+<p>
+If you want to run gcbench, add the define-record-type macro from r7rs.scm, and load stuff.scm (for define-class).
+Here are the diffs for the bench script:
+</p>
+<pre>
+141a142
+&gt;     S7=${S7:-"/home/bil/motif-snd/repl"}
+187a189
+&gt;   s7               for s7
+406a409,421
+&gt; # Definitions specific to s7
+&gt; 
+&gt; s7_comp ()
+&gt; {
+&gt;     :
+&gt; }
+&gt; 
+&gt; s7_exec ()
+&gt; {
+&gt;     time ${S7} "$1" &lt; "$2"
+&gt; }
+&gt; 
+&gt; # -----------------------------------------------------------------------------
+940a957,966
+&gt; 
+&gt;         s7)    NAME='s7'
+&gt;                COMP=s7_comp
+&gt;                EXEC=s7_exec
+&gt;                COMPOPTS=""
+&gt;                EXTENSION="scm"
+&gt;                EXTENSIONCOMP="scm"
+&gt;                COMPCOMMANDS=""
+&gt;                EXECCOMMANDS=""
+&gt;                ;;
+</pre>
+<p>
+I call the standalone version of s7 "repl", so its path
+is /home/bil/motif-snd/repl.  To build repl, get s7.tar.gz
+from ftp://ccrma-ftp.stanford.edu/pub/Lisp/s7.tar.gz, 
+add the empty file mus-config.h to the tarball's contents,
+then (in Linux):
+</p>
+<pre>
+gcc s7.c -o repl -DWITH_MAIN -I. -O2 -g -ldl -lm -Wl,-export-dynamic
+</pre>
+<p>For timing tests, I add "-fomit-frame-pointer -funroll-loops -march=native".
+mus-config.h normally has 
+</p>
+<pre>
+#define HAVE_COMPLEX_NUMBERS 1
+#define HAVE_COMPLEX_TRIG 1
+</pre>
+<p>
+but s7.c has defaults, so I think mus-config.h can be empty.
+Finally, go back to the benchmarks directory and
+</p>
+<pre>
+bench s7 all
+</pre>
+</small>
+
 </div>
 
 
@@ -6529,7 +6628,8 @@ int main(int argc, char **argv)
   if (argc == 2)
     {
       fprintf(stderr, "load %s\n", argv[1]);
-      s7_load(s7, argv[1]);
+      if (!s7_load(s7, argv[1]))
+        fprintf(stderr, "can't find %s\n", argv[1]);
     }
   else
     {
@@ -6663,9 +6763,36 @@ int main(int argc, char **argv)
  *    now an-integer: 32
  *    (add1 2): 3
  */
-</pre></div>
+</pre>
 
-
+<p>In more complicated cases, it is probably easier use s7_eval_c_string_with_environment.
+As an example, say we want to have a C procedure that calls the pretty printer function pp
+in write.scm, returning a string to C.  We need to make sure pp is loaded, and catch
+any errors that come up.  And we need to pass the C-level s7 object to pp.  So...
+</p>
+<pre>
+static const char *pp(s7_scheme *sc, s7_pointer obj) /* (pp obj) */
+{
+  return(s7_string(
+          <em class=red>s7_eval_c_string_with_environment</em>(sc,
+            "(catch #t                         \
+               (lambda ()                      \
+                 (unless (defined? 'pp)        \
+                   (load \"write.scm\"))       \
+                 (<em class=red>pp</em> obj))                     \
+               (lambda (type info)             \
+                 (apply format #f info)))",
+	   <em class=red>s7_inlet</em>(sc, s7_list(sc, 1, s7_cons(sc, s7_make_symbol(sc, "obj"), obj))))));
+}
+</pre>
+<p>and now when we want a pretty-printed representation of something: pp(sc, obj);
+The s7_inlet call is creating a local environment with the object "obj" bound
+in scheme to the name "obj" so that (pp obj) will find the "obj" that actually
+lives in C.  You may need to give the full filename for write.scm, or add its path
+to the <a href="#loadpath">load-path list</a>.  In the latter case, <code>(require write.scm)</code> could
+replace <code>(unless (defined?...))</code>.
+</p>
+</div>
 
 
 
@@ -7482,12 +7609,13 @@ int main(int argc, char **argv)
 
   s7_define_function(s7, "notify-C", scheme_set_notification, 2, 0, false, "called if notified-var is set!");
   s7_define_variable(s7, "notified-var", s7_make_integer(s7, 0));
-  <em class=red>s7_symbol_set_setter</em>(s7, s7_make_symbol(s7, "notified-var"), s7_name_to_value(s7, "notify-C"));
+  <em class=red>s7_set_setter</em>(s7, s7_make_symbol(s7, "notified-var"), s7_name_to_value(s7, "notify-C"));
 
   if (argc == 2)
     {
       fprintf(stderr, "load %s\n", argv[1]);
-      s7_load(s7, argv[1]);
+      if (!s7_load(s7, argv[1]))
+        fprintf(stderr, "can't find %s\n", argv[1]);
     }
   else
     {
@@ -7564,7 +7692,8 @@ int main(int argc, char **argv)
   if (argc == 2)
     {
       fprintf(stderr, "load %s\n", argv[1]);
-      s7_load(s7, argv[1]);
+      if (!s7_load(s7, argv[1]))
+        fprintf(stderr, "can't find %s\n", argv[1]);
     }
   else
     {
@@ -8639,6 +8768,15 @@ ex1
 
 <p>See also r7rs.scm, libc.scm, libgsl.scm, libm.scm, libdl.scm, and libgdbm.scm.
 libutf8proc.scm exists, but I have not tested it at all.
+</p>
+
+<p>The default in the lib*.scm files is to use the C name as the Scheme name.
+This collides with (for example) the widespread use of "-", rather than "_" in Scheme, but
+I have found it much more straightforward to stick with one name.  In cases like
+libgsl and libgtk there are thousands of names, all documented at great length
+by the C name. Anyone who wants to use these functions has to start with the C name.
+If they are forced to fuss with some annoying Schemely translation of it, 
+the only sane response is: "forget it! I'll do it in C".
 </p>
 
 <div class="indented" id="libc">

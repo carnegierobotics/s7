@@ -2,7 +2,7 @@
 ;;; (dups size file alloc-lines): 
 ;;;    find all matches of "size" successive lines in "file" ignoring empty lines and leading/trailing whitespace
 ;;;    "alloc-lines" is any number bigger than the number of lines in "file"
-;;;    (dups 16 "s7.c" 91000) finds all 16-line matches in s7.c which (we hope) has less than 91000 lines in all
+;;;    (dups 16 "s7.c" 91000) finds all 16-line matches in s7.c which (we wish) has less than 91000 lines in all
 
 (set! (*s7* 'heap-size) (* 2 1024000))
 
@@ -58,7 +58,7 @@
 	      
 	      (set! size (min size total-lines))
 	      (set! size-1 (- size 1))
-	      ;; (format *stderr* "lines: ~S~%" total-lines)         ; 80820
+	      ;; (format *stderr* "lines: ~S~%" total-lines)         ; 84201 2-jul-19
 
 	      ;; mark unmatchable strings
 	      (let ((sortv (make-vector total-lines)))
@@ -122,10 +122,10 @@
 			(unless first
 			  (format *stderr* "~%")))))))))))))
 
-(dups 16 "s7.c" 93000)
-;(dups 6 "s7.c" 93000)
+(dups 16 "s7.c" 100000)
+;(dups 8 "s7.c" 100000)
 ;(dups 12 "ffitest.c" 2000)
 ;(dups 8 "ffitest.c" 2000)
-;(dups 1 "s7test.scm" 102000)
+;(dups 1 "s7test.scm" 105000)
 
 (exit)
