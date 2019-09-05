@@ -314,8 +314,7 @@
 
 
 ;;; this is a revision of some code posted in comp.lang.lisp by melzzzzz for euler project 512
-;;;   apparently sbcl computes the big case (below) in "about a minute" -- well, so does s7!
-;;;   53 secs sbcl, 80 in s7
+
 #|
 (define (make-boolean-vector n)
   (make-int-vector (ceiling (/ n 63))))
@@ -328,7 +327,7 @@
 		    (logior (int-vector-ref ,v (quotient ,n 63))
 			    (ash 1 (remainder ,n 63)))))
 |#
-;;; this is slightly faster
+;;; this is slightly faster (using int-vector is better for the largest cases)
 (define (make-boolean-vector n) (make-vector n #f))
 (define boolean-vector-ref vector-ref)
 (define-expansion (boolean-vector-set! v j) `(vector-set! ,v ,j #t))
@@ -383,7 +382,9 @@
     (display r)
     (newline)))
 
-;;; (display (getr 500000000)) ;50660591862310323
+;;; (getr 5000000)    5066059769259     .5 
+;;; (getr 50000000)   506605921933035    6 
+;;; (getr 500000000)  50660591862310323  67 (32M, mutable_do)
 
 (exit)
 

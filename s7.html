@@ -890,12 +890,14 @@ implement the standard old-time macros.
     `(let () (and ,@(map (lambda (v) `(define ,@v)) vars) (begin ,@body))))
 
 &gt; (define-macro (<em class=def id="trace">trace</em> f)
-    `(define ,f 
-       (apply lambda 'args 
-         `((format () "(~A ~{~A~^ ~}) -&gt; " ',',f args)
-           (let ((val (apply ,,f args))) 
-             (format () "~A~%" val) 
-             val)))))
+    (let ((old-f (gensym)))
+      `(define ,f 
+         (let ((,old-f ,f))
+	   (apply lambda 'args 
+		  `((format () "(~S ~{~S~^ ~}) -&gt; " ',',f args)
+		    (let ((val (apply ,,old-f args))) 
+		      (format () "~S~%" val) 
+		      val)))))))
 <em class="gray">trace</em>
 &gt; (trace abs)
 <em class="gray">abs</em>
@@ -903,6 +905,16 @@ implement the standard old-time macros.
 <em class="gray">(abs -1.5) -&gt; 1.5</em>
 <em class="gray">1.5</em>
 </pre>
+
+<!-- this also probably works:
+(define-macro (trace f)
+    `(define ,f 
+       (apply lambda 'args 
+         `((format () "(~A ~{~A~^ ~}) -> " ',',f args)
+           (let ((val (apply ,',f args))) 
+             (format () "~A~%" val) 
+             val)))))
+-->
 
 <p>macroexpand can help debug a macro.  I always forget that it
 wants an expression:
@@ -1698,8 +1710,8 @@ Here's a generic FFT:
 </p>
 
 <pre class="indented">
-(define* (cfft! data n (dir 1)) ; (complex data)
-  (if (not n) (set! n (length data)))
+(define* (cfft data n (dir 1)) ; complex data
+  (unless n (set! n (length data)))
   (do ((i 0 (+ i 1))
        (j 0))
       ((= i n))
@@ -1734,9 +1746,9 @@ Here's a generic FFT:
       (set! wc (* wc wpc))))
   data)
 
-&gt; (cfft! (list 0.0 1+i 0.0 0.0))
+&gt; (cfft (list 0.0 1+i 0.0 0.0))
 <em class="gray">(1+1i -1+1i -1-1i 1-1i)</em>
-&gt; (cfft! (vector 0.0 1+i 0.0 0.0))
+&gt; (cfft (vector 0.0 1+i 0.0 0.0))
 <em class="gray">#(1+1i -1+1i -1-1i 1-1i)</em>
 </pre>
 
@@ -5274,7 +5286,7 @@ profile.scm shows one way to sort and display this data. To clear the counts, <c
 
 
 <div class="separator"></div>
-<p id="s7env"><b>*s7*</b> is an environment that gives access to some of s7's internal
+<p id="s7env"><b>*s7*</b> is a let that gives access to some of s7's internal
 state: 
 </p>
 <pre class="indented">
@@ -5695,7 +5707,9 @@ This is consistent with, for example,
 <code>(eq? #f '#f)</code> which is also #t.
 The standard says "the empty list is a special object of its own type", so surely either choice is
 acceptable in that regard (but, sigh, the standard stupidly goes on to deny that () can evaluate to itself).
-The confusion appears to be caused by the word "list".  I would describe the evaluator: "if it gets a
+(I'm told that "is an error" means "is not portable" in the standard's weasely abuse of English; if
+they mean "is not portable" why not say so?).
+Some of the confusion appears to be caused by the word "list".  I would describe the evaluator: "if it gets a
 constant (and () is a constant) it returns that constant; if a symbol, it returns the value
 associated with that symbol; if a pair, it looks at the pair's
 car to decide what to do".  It's kinda looney to insist on looking at the car of a list when you know () has no car!

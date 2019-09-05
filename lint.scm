@@ -1261,7 +1261,7 @@
 			(tree-subst new old (cdr tree))))))
     
 
-    (define (do->make-list caller form var1 var2) ; (var1: (... (+/-)) var2: (... (cons)))
+    (define (do->make-list caller form original-form var1 var2) ; (var1: (... (+/-)) var2: (... (cons)))
       (when (and (len=2? (cdr var2))
 		 (len=3? (caddr var1))
 		 (len=3? (caddr var2)))
@@ -1333,7 +1333,7 @@
 					       (not (eq? (car fill) 'quote)))
 					  (format #f ", (assuming ~S is not problematic), " fill)
 					  "")
-				      (lists->string form
+				      (lists->string original-form
 						     `(make-list ,len ,fill))))))
 		    
 		    ((and (memq (car fill) '(string-ref vector-ref))
@@ -1341,7 +1341,7 @@
 			  (or (eq? (caddr fill) name1)
 			      (equal? (caddr fill) `(- ,name1 1))))
 		     (lint-format "perhaps ~A" caller
-				  (format #f "~A -> ~A" form 
+				  (format #f "~A -> ~A" original-form 
 					  (if (eq? (car fill) 'string-ref) 'string->list 'vector->list))))
 		    
 		    ((and (len=2? fill)
@@ -1349,7 +1349,7 @@
 			  (memq (caadr fill) '(vector-ref string-ref byte-vector-ref float-vector-ref int-vector-ref  list-ref))
 			  (eq? name1 (caddr (cadr fill))))
 		     (lint-format "perhaps ~A" caller
-				  (format #f "~A -> ~A" form 
+				  (format #f "~A -> ~A" original-form 
 					  `(map ,(car fill) ,(cadadr fill)))))))))))
     
     (define recursion->iteration 
@@ -1729,12 +1729,12 @@
 				  (if (and (len=2? (cdr var1))
 					   (pair? (caddr var1))
 					   (eq? (caaddr var1) 'cons))
-				      (do->make-list name  do-loop (cadadr do-loop) var1)
+				      (do->make-list name do-loop initial-value (cadadr do-loop) var1)
 				      (let ((var2 (cadadr do-loop)))
 					(if (and (len=2? (cdr var2))
 						 (pair? (caddr var2))
 						 (eq? (caaddr var2) 'cons))
-					    (do->make-list name do-loop var1 var2))))))
+					    (do->make-list name do-loop initial-value var1 var2))))))
 			      )))))))))))))
 
     (define (improper-arglist->define* name ftype arglist initial-value)
@@ -6352,7 +6352,7 @@
 			  (eq? (caadr tree) 'apply-values))
 		     (list 'append (cadadr tree) (cadr (caddr tree)))
 		     (list 'cons (cadr tree) (cadr (caddr tree))))
-		 (cons 'list (unlist-values (cdr tree)))))
+		 (cons 'list (unlist-values (cdr tree))))) ; #_list perhaps? and #_cons #_append above?
 	    
 	    ((append)
 	     (if (and (len=2? (cdr tree))
@@ -10253,7 +10253,8 @@
 					gc-protected-objects file-names rootlet-size c-types stack-top stack-size stacktrace-defaults history-enabled
 					max-stack-size stack catches float-format-precision bignum-precision default-rationalize-error 
 					default-random-state equivalent-float-epsilon hash-table-float-epsilon undefined-identifier-warnings 
-					undefined-constant-warnings gc-stats history-size history profile-info autoloading? max-format-length))
+					undefined-constant-warnings gc-stats history-size history profile-info autoloading? max-format-length
+					most-positive-fixnum most-negative-fixnum))
 			    h)))
 	   (lambda (caller head form env)
 	     (if (len=2? form)
@@ -11237,6 +11238,7 @@
 					   (set! bad-ops (cons op bad-ops)))))
 				   (let-ref fdata 'macro-ops))
 				  
+				  (if (equal? bad-quoted-locals '(quote)) (set! bad-quoted-locals ()))
 				  (when (or (pair? bad-locals)
 					    (pair? bad-quoted-locals) 
 					    ;; (define-macro (mac8 b) `(let ((a 12)) (+ (symbol->value ,b) a)))
@@ -14442,7 +14444,7 @@
 		  (when (pair? body)
 		    (let ((args (cdr body)))
 		      (case (car body)
-			((list-values)
+			((list-values) ; was list also briefly
 			 (when (and (pair? args)
 				    (quoted-symbol? (car args)))
 			   (if (proper-list? outer-args)
@@ -18692,12 +18694,12 @@
 		    (if (and (len=2? (cdr var1))
 			     (pair? (caddr var1))
 			     (eq? (caaddr var1) 'cons))
-			(do->make-list caller form (cadadr form) var1)
+			(do->make-list caller form form (cadadr form) var1)
 			(let ((var2 (cadadr form)))
 			  (if (and (len=2? (cdr var2))
 				   (pair? (caddr var2))
 				   (eq? (caaddr var2) 'cons))
-			      (do->make-list caller form var1 var2))))))))
+			      (do->make-list caller form form var1 var2))))))))
 		  
 	  ;; -------- do-walker --------
 	  (define (do-walker caller form env)
@@ -22363,11 +22365,11 @@
 				   ((and (len=3? arg1)                        ; `((a . b) (c . d)) -> (list (cons a b) (cons c d))
 					 (eq? (car arg1) 'append)            ; `((a . (b . c))...) -> (list (cons a (cons b c)) ...)
 					 (pair? (cadr arg1))
-					 (eq? (caadr arg1) 'list-values)
+					 (eq? (caadr arg1) 'list-values) ; was memq+list
 					 (len=3? arg2)
 					 (eq? (car arg2) 'append)
 					 (pair? (cadr arg2))
-					 (eq? (caadr arg2) 'list-values))
+					 (eq? (caadr arg2) 'list-values)) ; same
 				    (let ((ca1 (cadr arg1))
 					  (ca2 (cadr arg2)))
 				      (let ((len1 (length ca1))
@@ -23228,5 +23230,5 @@
     #f))
 |#
 
-;;; 57 919120
+;;; 54 896368
 
