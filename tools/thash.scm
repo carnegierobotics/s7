@@ -1,8 +1,7 @@
-(set! (*s7* 'heap-size) (* 5 1024000))
-;(set! (*s7* 'gc-stats) 6)
+(set! (*s7* 'heap-size) (* 3 1024000))
 
 (define (reader)
-  (let ((port (open-input-file "/home/bil/test/scheme/bench/src/bib"))
+  (let ((port (open-input-file "/home/bil/cl/bib"))
 	(counts (make-hash-table))
 	(start 0)
 	(end 0)
@@ -28,9 +27,8 @@
 			     (<= k start))
 			 (+ k 1)))))
 	  (when (> end start)
-	    (let* ((word (string->symbol (substring line start end)))
-		   (refs (or (hash-table-ref counts word) 0)))
-	      (hash-table-set! counts word (+ refs 1)))))
+	    (let ((word (string->symbol (substring line start end))))
+	      (hash-table-set! counts word (+ (or (hash-table-ref counts word) 0) 1)))))
 	(set! new-pos (+ pos 1))))
     
     (close-input-port port)
@@ -83,7 +81,7 @@
 
 (let ()
   (define (hash-ints)
-    (let ((counts (make-hash-table 8 = (cons integer? integer?))))
+    (let ((counts (make-hash-table)))
       (do ((i 0 (+ i 1))
 	   (z (random 100) (random 100)))
 	  ((= i 5000000) counts)
@@ -243,4 +241,6 @@
 (for-each test-hash (list 1 10 100 1000 10000 100000 1000000))
 (newline)
 
+(when (> (*s7* 'profile) 0)
+  (show-profile 200))
 (exit)

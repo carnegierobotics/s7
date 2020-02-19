@@ -52,22 +52,21 @@
 
 ;; (fannkuch 7): (228 . 16), 8: (1616 . 22), 9: (8629 . 30), 10: (73196 . 38), 11: (556355 . 51), 12: (3968050 . 65)
 (display (fannkuch 7)) (newline)
-;; (fannkuch 12) takes around 5 minutes (297 secs)
+;(fannkuch 12) ;takes around 5 minutes (297 secs)
 
 ;;; --------------------------------------------------------------------------------
 
 (define (wc)
-  (let ((newk 0)
-	(nw 0)
+  (let ((nw 0)
 	(nc 0)
 	(port (open-input-file "/home/bil/test/scheme/bench/src/bib")))
-    (do ((str (read-line port) (read-line port))
+    (do ((newk 0 0)
+	 (str (read-line port) (read-line port))
 	 (nl 0 (+ nl 1)))
 	((eof-object? str)
 	 (close-input-port port)
 	 (list nl (+ nw nl) nc))
       (set! nc (+ nc 1 (string-length str)))
-      (set! newk 0)
       (do ((k (char-position #\space str) (char-position #\space str (+ k 1))))
 	  ((not k))
 	(if (not (= k newk))
@@ -176,7 +175,7 @@
 		   (format *stderr* "~D~9Ttrees of depth ~D~30Tcheck: ~D~%" iterations depth check)))))
 	  (format *stderr* "long lived tree of depth ~D~30Tcheck: ~D~%" max-depth (item-check long-lived-tree)))))))
 
-;(binary-tree 21) ; 26 secs
+;(binary-tree 21) ; 20 secs
 (binary-tree 6)
 
 ;;; stretch      tree of  depth 22	 check: 8388607
@@ -215,9 +214,10 @@
 	    (set! num i)))
 	(format *stderr* "Maximum stopping distance ~D, starting number ~D\n" len num)))))
 
-;(collatz 300000)
+;; (collatz 300000)
 ;; Maximum stopping distance 442, starting number 230631
-;; .66 secs
+;; .45 secs
+
 (collatz 20000)
 
 ;;; --------------------------------------------------------------------------------
@@ -240,14 +240,13 @@
 		 (set! L (cdr L))))))))
 
 (let ()
-  (define (count-primes limit)          ; for limit=10000000 12.7 secs 664579
+  (define (count-primes limit)          ; for limit=10000000 10.4 secs 664579
     (let ((primes 0))
       (do ((i 2 (+ i 1)))
 	  ((= i limit)
 	   primes)
 	(if (prime? i)
 	    (set! primes (+ primes 1))))))
-
   (display (count-primes 100000)) (newline)) ; 9592
 
 ;;; --------------------------------------------------------------------------------
@@ -265,6 +264,7 @@
 	(float-vector-set! av i (+ (float-vector-ref av i) 
 				   (* (/ 1.0 (+ i (float-vector-ref weights (+ i j))))
 				      (float-vector-ref v j)))))))
+  
   (define (mulAtV n v atv)
     (fill! atv 0.0)
     (do ((i 0 (+ i 1)))
@@ -274,6 +274,7 @@
 	(float-vector-set! atv i (+ (float-vector-ref atv i) 
 				    (* (/ 1.0 (+ j (float-vector-ref weights (+ i j))))
 				       (float-vector-ref v j)))))))
+  
   (define (mulAtAv n v atav)
     (let ((u (make-float-vector n 0.0)))
       (mulAv n v u)
@@ -301,9 +302,32 @@
       
       (sqrt (/ vBv vV))))
 
-  (display (spectral-norm 125)) ; 1.2742, (spectral-norm 5500) takes about 28 secs
+  (display (spectral-norm 125)) ; (spectral-norm 5500) takes about 14.3 secs
   (newline))
 
 ;;; --------------------------------------------------------------------------------
+;;;
+;;; from Joe Marshall (not a "standard benchmark", but interesting)
 
+(let ()
+  (define (palindrome? string)
+    (or (< (string-length string) 2)
+	(and (char=? (string-ref string 0)
+		     (string-ref string (- (string-length string) 1)))
+	     (palindrome? (substring string 1 (- (string-length string) 1))))))
+
+  (define (pal-test)
+    (do ((i 0 (+ i 1)))
+	((= i 10000))
+      (palindrome? "abcdefgfedcba")
+      (palindrome? "abcdefxfedcba")
+      (palindrome? "")
+      (palindrome? "abcdefghedcba")))
+
+  (pal-test))
+
+;;; --------------------------------------------------------------------------------
+
+(when (> (*s7* 'profile) 0)
+  (show-profile 100))
 (exit)

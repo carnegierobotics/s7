@@ -1,6 +1,6 @@
 ;;; r7rs compatibility
 
-(require libc.scm stuff.scm)
+(require libc.scm)
 (provide 'r7rs.scm)
 
 
@@ -24,7 +24,7 @@
 (define r7rs-vector-fill! fill!) ; or do these return the sequence, not the filler?
 (define r7rs-string-fill! fill!)
 
-(define* (vector-copy! dest at src (start 0) end) ; apparently end is exclusive here?
+(define* (vector-copy! dest at src (start 0) end) ; end is exclusive
   (let ((len (or end (length src))))
     (if (or (not (eq? dest src))
 	    (<= at start))
@@ -41,7 +41,7 @@
   (if (null? args)
       (#_make-hash-table)
       (if (procedure? (car args))
-	  (#_make-hash-table (if (null? (cdr args)) 511 (cadr args)) (car args))
+	  (#_make-hash-table (if (null? (cdr args)) (*s7 'default-hash-table-length) (cadr args)) (car args))
 	  (apply #_make-hash-table args))))
 
 (define bytevector byte-vector)
@@ -51,21 +51,24 @@
 (define bytevector-set! byte-vector-set!)
 (define bytevector-copy! vector-copy!)
 (define string-copy! vector-copy!)
-(define (bytevector->list bv) (map values bv))
+(define (bytevector->list bv) (copy bv (make-list (length bv))))
 
 
 (define (boolean=? . args)
   (or (null? args)
       (and (boolean? (car args))
-	   (or (null? (cdr args))
-	       (every? (lambda (obj) (eq? (car args) obj)) (cdr args))))))
+	   (let loop ((obj (car args)) (lst (cdr args)))
+	     (or (null? lst)
+		 (and (eq? obj (car lst))
+		      (loop obj (cdr lst))))))))
 
 (define (symbol=? . args) 
   (or (null? args)
       (and (symbol? (car args))
-	   (or (null? (cdr args))
-	       (every? (lambda (obj) (eq? (car args) obj)) (cdr args))))))
-
+	   (let loop ((obj (car args)) (lst (cdr args)))
+	     (or (null? lst)
+		 (and (eq? obj (car lst))
+		      (loop obj (cdr lst))))))))
 
 (define char-foldcase char-downcase) 
 (define string-foldcase string-downcase)
@@ -143,6 +146,27 @@
 (define-macro (guard results . body)
   `(let ((,(car results) (catch #t (lambda () ,@body) (lambda args (car args)))))
      (cond ,@(cdr results))))
+
+#|
+;;; maybe these are closer to what r7rs intends?
+(define (raise . args)
+  (apply throw #t args))
+
+(define-macro (guard results . body)
+  `(let ((,(car results) 
+	  (catch #t 
+	    (lambda () 
+	      ,@body) 
+	    (lambda (type info)
+	      (if (pair? (*s7* 'catches))
+		  (lambda () (apply throw type info))
+		  (car info))))))
+     (cond ,@(cdr results)
+	   (else 
+	    (if (procedure? ,(car results)) 
+		(,(car results))
+		,(car results))))))
+|#
 
 (define (read-error? obj) (eq? (car obj) 'read-error))
 (define (file-error? obj) (eq? (car obj) 'io-error))
@@ -407,6 +431,42 @@
 
 ;; records
 (define-macro (define-record-type type make ? . fields)
+  (let ((obj (gensym))
+	(args (map (lambda (field)
+		     (values (list 'quote (car field))
+			     (let ((par (memq (car field) (cdr make))))
+			       (if (pair? par) (car par) #f))))
+		   fields)))
+    `(begin
+       (define (,? ,obj)
+	 (and (let? ,obj)
+	      (eq? (let-ref ,obj 'type) ',type)))
+       
+       (define ,make 
+         (inlet 'type ',type ,@args))
+
+       ,@(map
+	  (lambda (field)
+	    (when (pair? field)
+	      (if (null? (cdr field))
+		  (values)
+		  (if (null? (cddr field))
+		      `(define (,(cadr field) ,obj)
+			 (let-ref ,obj ',(car field)))
+		      `(begin
+			 (define (,(cadr field) ,obj)
+			   (let-ref ,obj ',(car field)))
+			 (define (,(caddr field) ,obj val)
+			   (let-set! ,obj ',(car field) val)))))))
+	  fields)
+       ',type)))
+
+;;; srfi 111:
+(define-record-type box-type (box value) box? (value unbox set-box!))
+
+#|
+;;; more than r7rs desires I think:
+(define-macro (define-record-type type make ? . fields)
   (let ((new-type (if (pair? type) (car type) type))
 	(inherited (if (pair? type) (cdr type) ()))
 	(obj (gensym))
@@ -415,21 +475,23 @@
        (define-class ,new-type ,inherited   ; from stuff.scm
          (map (lambda (f) (if (pair? f) (car f) f)) ',fields))
        
-       (define (,? ,obj)    ; perhaps the define-class type predicate should use this 
-         (define (search-inherited ,obj type)
-	   (define (search-inheritors objs type)
-	     (and (pair? objs)
-		  (or (search-inherited (car objs) type)
-		      (search-inheritors (cdr objs) type))))
-	   (or (eq? (,obj 'class-name) type)
-	       (search-inheritors (,obj 'inherited) type)))
-         (and (let? ,obj)
-	      (search-inherited ,obj ',new-type)))
+       (define ,?    ; perhaps the define-class type predicate should use this 
+	 (let ()
+	   (define (search-inherited ,obj type)
+	     (define (search-inheritors objs type)
+	       (and (pair? objs)
+		    (or (search-inherited (car objs) type)
+			(search-inheritors (cdr objs) type))))
+	     (or (eq? (let-ref ,obj 'class-name) type)
+		 (search-inheritors (let-ref ,obj 'inherited) type)))
+	   (lambda (,obj)
+	     (and (let? ,obj)
+		  (search-inherited ,obj ',new-type)))))
        
        (define ,make 
          (let ((,new-obj (copy ,new-type)))
 	   ,@(map (lambda (slot)
-		    `(set! (,new-obj ',slot) ,slot))
+		    `(let-set! ,new-obj ',slot ,slot))
 		  (cdr make))
 	   ,new-obj))
        
@@ -440,22 +502,45 @@
 		  (values)
 		  (if (null? (cddr field))
 		      `(define (,(cadr field) ,obj)
-			 (if (not (,? ,obj)) 
-			     (error 'wrong-type-arg "~S should be a ~A" ,obj ',type))
-			 (,obj ',(car field)))
+			 (let-ref ,obj ',(car field)))
 		      `(begin
 			 (define (,(cadr field) ,obj)
-			   (if (not (,? ,obj)) 
-			       (error 'wrong-type-arg "~S should be a ~A" ,obj ',type))
-			   (,obj ',(car field)))
+			   (let-ref ,obj ',(car field)))
 			 (define (,(caddr field) ,obj val)
-			   (if (not (,? ,obj)) 
-			       (error 'wrong-type-arg "~S should be a ~A" ,obj ',type))
-			   (set! (,obj ',(car field)) val)))))))
+			   (let-set! ,obj ',(car field) val)))))))
 	  fields)
        ',new-type)))
 
-;;; srfi 111:
-(define-record-type box-type (box value) box? (value unbox set-box!))
-
-
+;;; vector form is slower:
+(define-macro (define-record-type type make ? . fields)
+  (let* ((obj (gensym))
+	 (args (map (lambda (field)
+		      (let ((par (memq (car field) (cdr make))))
+			(if (pair? par) (car par) #f)))
+		    fields)))
+    `(begin
+       (define (,? obj) 
+	 (and (vector? obj) 
+	      (eq? (vector-ref obj 0) ',type)))
+       
+       (define ,make 
+	 (vector ',type ,@args))
+       
+       ,@(map
+	  (let ((pos 0))
+	    (lambda (field)
+	      (set! pos (+ pos 1))
+	      (when (pair? field)
+		(if (null? (cdr field))
+		    (values)
+		    (if (null? (cddr field))
+			`(define (,(cadr field) ,obj)
+			   (vector-ref ,obj ,pos))
+			`(begin
+			   (define (,(cadr field) ,obj)
+			     (vector-ref ,obj ,pos))
+			   (define (,(caddr field) ,obj val)
+			     (vector-set! ,obj ,pos val))))))))
+	  fields)
+       ',type)))
+|#

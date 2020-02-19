@@ -2,7 +2,7 @@
   ;; depends on running s7test first normally
   (load "s7test-block.so" new-env))
 
-(set! (*s7* 'heap-size) 1024000)
+;(set! (*s7* 'heap-size) 1024000)
 
 (define (test-copy size)
   (let ((old-string (make-string size #\a))
@@ -264,4 +264,6 @@
 ;(test-append 10000)
 |#
 
+(when (> (*s7* 'profile) 0)
+  (show-profile 200))
 (exit)

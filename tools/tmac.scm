@@ -12,9 +12,21 @@
 	(set! y (m2 x (x x)))
 	(if (not (= y (+ (* 3 x) 1)))
 	    (format *stderr* "y: ~A~%" y))))))
-
 (f2)
 
+#|
+(define (f2d)
+  (let ((x 2)
+	(y 0))
+    (do ((j 0 (+ j 1)))
+	((= j 1))
+      (do ((i 0 (+ i 1)))
+	  ((= i size))
+	(set! y ((macro (a b) `(+ ,a ,@b 1)) x (x x)))
+	(if (not (= y (+ (* 3 x) 1)))
+	    (format *stderr* "y: ~A~%" y))))))
+(f2d)
+|#
 
 (define-expansion (m3 a b) `(+ ,a ,@b 1))
 (define (f3)
@@ -51,7 +63,7 @@
     (m5 1 3 4 5)))
 (f5-test)
 
-(define-macro (m61 a b) `(+ ,a ,@b))
+(define-macro (m61 a b) (cons '+ (cons a b)))
 (define (f61-test mx)
   (do ((i 0 (+ i 1)))
       ((= i size))
@@ -86,12 +98,13 @@
 (define (trace-test)
   (let loop ((count 0))
     (if (< count 30000) ; not 'when for old snd timings
-	(begin
-	  (let ((f1 (lambda (x y z) (+ x y z))))
-	    (trace f1) ; op_macro_d I think
-	    (f1 count count count)
-	    (loop (+ count 1)))))))
+	(let ((f1 (lambda (x y z) (+ x y z))))
+	  (trace f1) ; op_macro_d I think
+	  (f1 count count count)
+	  (loop (+ count 1))))))
 
 (trace-test)
 
+(when (> (*s7* 'profile) 0)
+  (show-profile 200))
 (exit)

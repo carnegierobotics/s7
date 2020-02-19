@@ -1,6 +1,35 @@
 ;;; vector timing tests
 
-(set! (*s7* 'heap-size) 1024000)
+(set! (*s7* 'heap-size) (* 2 1024000))
+
+;;; --------------------------------
+
+(define (max+loc vect)
+  (let ((len (length vect))
+	(mx 0.0)
+	(loc 0))
+    (do ((i 0 (+ i 1)))
+	((= i len)
+	 (list mx loc))
+      (when (> (abs (vect i)) mx)
+	(set! mx (vect i))
+	(set! loc i)))))
+
+(define (test-max tests)
+  (let ((v (make-float-vector 1024)))
+    (do ((i 0 (+ i 1)))
+	((= i 1024))
+      (set! (v i) (- (random 100.0) 50.0)))
+
+    (display (max+loc v)) (newline)
+
+    (do ((i 0 (+ i 1)))
+	((= i tests))
+      (max+loc v))))
+
+(test-max 10000)
+
+;;; --------------------------------
 
 (define size 300000)
 (define size/10 (/ size 10))
@@ -366,7 +395,7 @@
   (let ((v (make-vector size)))
     (do ((i 0 (+ i 1)))
 	((= i size) (vector-ref v 0))
-      (list-values (vector-set! v i 2)))))
+      (values (vector-set! v i 2)))))
 
 (unless (= (h7) 2)
   (format *stderr* "h7: ~S~%" (h7)))
@@ -452,7 +481,7 @@
 	((= k 10) (vector-ref v 0 0))
       (do ((i 0 (+ i 1)))
 	  ((= i size/10))
-	(list-values (vector-set! v k i 2))))))
+	(values (vector-set! v k i 2))))))
 
 (unless (= (h17) 2)
   (format *stderr* "h17: ~S~%" (h17)))
@@ -515,7 +544,7 @@
   (let ((v (make-vector size)))
     (do ((i 0 (+ i 1)))
 	((= i size) (v 0))
-      (list-values (set! (v i) 2)))))
+      (values (set! (v i) 2)))))
 
 (unless (= (j6) 2)
   (format *stderr* "j6: ~S~%" (j6)))
@@ -587,7 +616,7 @@
 	((= k 10) (v 0 0))
       (do ((i 0 (+ i 1)))
 	  ((= i size/10))
-	(list-values (set! (v k i) 2))))))
+	(values (set! (v k i) 2))))))
 
 (unless (= (j16) 2)
   (format *stderr* "j16: ~S~%" (j16)))
@@ -775,5 +804,7 @@
 
 (tvcop)
 
+(when (> (*s7* 'profile) 0)
+  (show-profile 200))
 (exit)
 

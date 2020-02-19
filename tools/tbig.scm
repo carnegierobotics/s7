@@ -5,6 +5,7 @@
 (set! (*s7* 'max-vector-length) (ash 1 36))
 (set! (*s7* 'max-string-length) (ash 1 36))
 (set! (*s7* 'safety) -1)
+;; setting heap-size slows us down
 
 (load "s7test-block.so" (sublet (curlet) (cons 'init_func 'block_init)))
 
@@ -199,7 +200,6 @@
 
 (ratio-test)
 (clear-and-gc)
-
 
 
 ;; --------------------------------------------------------------------------------
@@ -627,7 +627,6 @@
 (float-vector-test)
 (clear-and-gc)
 
-
 (define (float-2d-fft rl n dir)
   (when rl
     (let ((tempr 0.0)
@@ -945,6 +944,7 @@
 
 (int-vector-test)
 (clear-and-gc)
+
 
 ;; --------------------------------------------------------------------------------
 (format () "~%vectors...~%")
@@ -2355,5 +2355,7 @@
 ;(clear-and-gc)
 ;(*s7* 'memory-usage)
 
+(when (> (*s7* 'profile) 0)
+  (show-profile 200))
 (exit)
 

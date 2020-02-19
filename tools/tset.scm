@@ -48,8 +48,10 @@
 		(not (= z 5)))
 	    (format *stderr* "let*: ~D ~D ~D~%" x y z)))
       
-      (if (zero? (modulo i 8)) (gc)))))
+      (if (zero? (modulo i 9)) (gc)))))
 
 (t)
 
+(when (> (*s7* 'profile) 0)
+  (show-profile 200))
 (exit)

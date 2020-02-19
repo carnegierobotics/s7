@@ -1,4 +1,4 @@
-(set! (*s7* 'heap-size) 1024000)
+;(set! (*s7* 'heap-size) 1024000)
 (let ((size 100000))
 
   (define (less a b)
@@ -12,7 +12,7 @@
 	 (<= a b)))
   (define (closure-less a b)
     (and (< a b)
-	 (= (abs (+ (* 2 (- 3)) 1)) 5))) ; force all-x to give up!
+	 (= (abs (+ (* 2 (- 3)) 1)) 5))) ; force optimizer to give up!
   (define (begin-less a b)
     (if (and (< a b) (> a b)) (display "oops"))
     (< a b))
@@ -202,4 +202,6 @@
   
   (run-sort))
 
+(when (> (*s7* 'profile) 0)
+  (show-profile 200))
 (exit)

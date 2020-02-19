@@ -4,8 +4,6 @@
 ;;;    "alloc-lines" is any number bigger than the number of lines in "file"
 ;;;    (dups 16 "s7.c" 91000) finds all 16-line matches in s7.c which (we wish) has less than 91000 lines in all
 
-(set! (*s7* 'heap-size) (* 2 1024000))
-
 (define dups 
   (let ((unique #f))
 
@@ -128,4 +126,6 @@
 ;(dups 8 "ffitest.c" 2000)
 ;(dups 1 "s7test.scm" 105000)
 
+(when (> (*s7* 'profile) 0)
+  (show-profile 200))
 (exit)

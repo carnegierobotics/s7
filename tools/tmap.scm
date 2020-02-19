@@ -1,6 +1,6 @@
 ;;; sequence tests
 
-(set! (*s7* 'heap-size) (* 4 1024000))
+;(set! (*s7* 'heap-size) (* 4 1024000))
 
 (define (less-than a b)
   (or (< a b) (> b a)))
@@ -386,5 +386,7 @@
 ;;; (getr 50000000)   506605921933035    6 
 ;;; (getr 500000000)  50660591862310323  67 (32M, mutable_do)
 
+(when (> (*s7* 'profile) 0)
+  (show-profile 200))
 (exit)
 

@@ -5,8 +5,8 @@
       `(if (not ,test) (begin ,@body))))
 
 (define (fib n)
-  (if (< n 2)
-      n
+  (if (<= n 2)
+      1
       (+ (fib (- n 1))
          (fib (- n 2)))))
 
@@ -16,10 +16,10 @@
 
 
 (define (fibr n)
-  (if (>= n 2)
+  (if (> n 2)
       (+ (fibr (- n 1))
          (fibr (- n 2)))
-      n))
+      1))
 
 (let ((f32 (fibr 32)))
   (unless (= f32 2178309) ;3524578)
@@ -142,13 +142,12 @@
       (add lst))))
 (more-add)
 
-
 (define (adder lst)
-  (letrec ((add (lambda (L sum)
-		  (if (pair? L)
-		      (add (cdr L) (+ sum (car L)))
-		      sum))))
-    (add lst 0)))
+  (letrec ((add1 (lambda (L sum)
+		   (if (pair? L)
+		       (add1 (cdr L) (+ sum (car L)))
+		       sum))))
+    (add1 lst 0)))
 
 (define (more-adder)
   (do ((lst big-list)
@@ -157,7 +156,6 @@
     (adder big-list)))
 
 (more-adder)
-
 
 (define (got-symbol lst)
   (and (pair? lst)
@@ -292,4 +290,6 @@
 
 
 
+(when (> (*s7* 'profile) 0)
+  (show-profile 200))
 (exit)

@@ -1,4 +1,4 @@
-(set! (*s7* 'heap-size) 1024000)
+(set! (*s7* 'heap-size) (* 2 1024000))
 
 (define size 500000)
 
@@ -15,13 +15,13 @@
 	(unless (= y x)
 	  (format *stderr* "y: ~A~%" y))))))
 
-(define (w2)
+(define-constant (w2)
   (let ((x 1))
     (let ((y (let-temporarily ((x 32))
 	       (+ x 1))))
       (+ x y))))
 
-(define (w3)
+(define-constant (w3)
   (let ((x 1)
 	(y 2))
     (let ((z (let-temporarily ((x 6) (y 7))
@@ -44,31 +44,31 @@
 
 
 ;;; =>
-(define (f1)
+(define-constant (f1)
   (cond (-2 => abs)))
 
-(define (x+1 x) 
+(define-constant (x+1 x) 
   (+ x 1))
 
-(define (f2)
+(define-constant (f2)
   (cond (32 => x+1)))
 
 (define* (x+y x (y 2))
   (+ x y))
 
-(define (f3 z)
+(define-constant (f3 z)
   (cond ((if z 1 3) => x+y)))
 
-(define (f4)
+(define-constant (f4)
   (cond ((random 1) => "asdf")))
 
 (define (xs)
   (values 1 2 3))
 
-(define (f5)
+(define-constant (f5)
   (do ((i 0 (+ i 1))) ((xs) => +)))
 
-(define (f6 x)
+(define-constant (f6 x)
   (case x ((1) 2) (else => abs)))
 
 (define (ftest)
@@ -159,5 +159,42 @@
 
 (mvtest)
 
+(when (> (*s7* 'profile) 0)
+  (show-profile 200))
 
-(exit)
+;;; unlet
+;;; incrementally set all globals to 42 -- check that unlet exprs return the same results
+
+(when (zero? (*s7* 'profile))
+  (let* ((syms (symbol-table))
+	 (num-syms (length syms))
+	 (orig-x (*s7* 'print-length)))
+    
+    (define (unlet-test i)
+      (with-let (unlet)
+	(catch #t
+	  (lambda ()
+	    (eval `(define ,(syms i) 42))
+	    (when (procedure? (symbol->value (syms i) (rootlet)))
+	      (with-let (unlet)
+		(eval `(set! ,(syms i) 42) (rootlet)))))
+	  (lambda (type info)
+	    #f)))
+      
+      (with-let (unlet)
+	(do ((k 0 (+ k 1)))
+	    ((= k 1000))
+	  (catch #t
+	    (lambda ()
+	      (let ((x (+ k (*s7* 'print-length))))
+		(unless (eqv? x (+ k orig-x))
+		  (format *stderr* "sym: ~S, x: ~S, orig: ~S~%" (syms i) x (+ k orig-x)))))
+	    (lambda (type info)
+	      (format *stderr* "sym: ~S, error: ~S~%" (syms i) (apply format #f info)))))))
+
+    (do ((i 0 (#_+ i 1))) ; "do" is not a procedure (see above) so it's not in danger here
+	((#_= i num-syms))
+      (unlet-test i))))
+
+
+(#_exit) ; we just clobbered exit above

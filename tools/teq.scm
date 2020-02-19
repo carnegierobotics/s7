@@ -1,6 +1,6 @@
 ;;; cyclic/shared timing tests
 
-(set! (*s7* 'heap-size) (* 2 1024000))
+;(set! (*s7* 'heap-size) (* 2 1024000))
 
 ;;; equal? write/object->string/format cyclic-sequences
 
@@ -71,7 +71,7 @@
 
 ;(set! (*s7* 'initial-string-port-length) 64)
 
-(define (tests size)
+(define (equal-tests size)
   (let ((str #f)
 	(vj #f)
 	(p (open-output-string)))
@@ -92,6 +92,23 @@
 	(cyclic-sequences vj)))
     (close-output-port p)))
 
-(tests 10000)
+(equal-tests 20000)
 
+(define (equivalent-tests size)
+  (let ((vj #f))
+  (do ((i 0 (+ i 1)))
+      ((= i size))
+    (do ((a teq-vars (cdr a)))
+	((null? a))
+      (set! vj (car a))
+      (do ((b teq-vars (cdr b)))
+	  ((null? b))
+	(if (equivalent? vj (car b))
+	    (if (not (eq? a b))
+		(format *stderr* "oops!: ~A ~A~%" a b))))))))
+
+(equivalent-tests 20000)
+
+(when (> (*s7* 'profile) 0)
+  (show-profile 200))
 (exit)

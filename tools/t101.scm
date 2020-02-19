@@ -22,7 +22,7 @@
 (let ((aux-file (format #f "t101-aux-~D.scm" (set! aux-counter (+ aux-counter 1)))))
   (call-with-output-file aux-file
     (lambda (p)
-      (format p "(with-input-from-file \"all-lg-results\" (lambda () (display (with-output-to-string (lambda () (load \"s7test.scm\")))) (newline)))")
+      (format p "(with-input-from-file \"/home/bil/cl/all-lg-results\" (lambda () (display (with-output-to-string (lambda () (load \"s7test.scm\")))) (newline)))")
       (format p "(load \"s7test.scm\")~%(exit)~%")))
   (format *stderr* "~%~NC~%test: stdin from all-lg-results~%" 80 #\-)
   (system (string-append "./repl " aux-file)))
@@ -44,6 +44,7 @@
   "`(ok? ',tst (let () (define (_s7_) ,tst) (define (_call_) (_s7_))) ,expected)"
   "`(ok? ',tst (lambda () (let ((_s7_ #f)) (set! _s7_ ,tst))) ,expected)"
   "`(ok? ',tst (lambda () (let ((_s7_ ,tst)) _s7_)) ,expected)"
+  "`(ok? ',tst (lambda () (letrec ((_s7_ ,tst)) _s7_)) ,expected)"
   "`(ok? ',tst (catch #t (lambda () (lambda* ((!a! ,tst)) !a!)) (lambda any (lambda () 'error))) ,expected)"
   "`(ok? ',tst (lambda () (do ((!a! ,tst)) (#t !a!))) ,expected)"
   "`(ok? ',tst (lambda () (do ((__i__ 0 (+ __i__ 1))) ((= __i__ 1) ,expected) ,tst)) ,expected)"
@@ -57,26 +58,52 @@
   "`(ok? ',tst (lambda () (car (list (values ,tst 0)))) ,expected)"
   "`(ok? ',tst (lambda () ((lambda (!a! !b!) !b!) (values #f ,tst))) ,expected)"
   "`(ok? ',tst (lambda () (define (_s7_ !a!) !a!) (_s7_ ,tst)) ,expected)"
+  "`(ok? ',tst (lambda () (define (_s7_ . !a!) (car !a!)) (_s7_ ,tst)) ,expected)"
   "`(ok? ',tst (lambda () (let ((___x #f)) (set! ___x ,tst))) ,expected)"
   "`(ok? ',tst (lambda () (let ((___x #(#f))) (set! (___x 0) ,tst))) ,expected)"
   "`(ok? ',tst (lambda () (let ((___x #(#f))) (vector-set! ___x 0 ,tst))) ,expected)"
   "`(ok? ',tst (lambda () (dynamic-wind (lambda () #f) (lambda () ,tst) (lambda () #f))) ,expected)"
   "`(ok? ',tst (lambda () (caadr (catch 'receive (lambda () (throw 'receive ,tst)) (lambda any any)))) ,expected)"
   "`(ok? ',tst (lambda () (stacktrace (- (random 100) 50) (- (random 100) 50) (- (random 100) 50) (- (random 100) 50) (> (random 100) 50)) ,tst) ,expected)"
-  "`(ok? ',tst (lambda () (let ((__val__ (s7-optimize '(,tst)))) (if (eq? __val__ #<undefined>) ,tst __val__)))	,expected)"
+  "`(ok? ',tst (lambda () (let ((__val__ (s7-optimize '(,tst)))) (if (eq? __val__ #<undefined>) ,tst __val__))) ,expected)"
   "`(ok? ',tst (lambda () (let ((!x 0)) (set! (setter '!x) (lambda (_A _B) ,tst)) (set! !x 1))) ,expected)"
   "`(ok? ',tst (lambda () (define* (fgh1 (!x ,tst)) !x) (fgh1)) ,expected)"
   "`(ok? ',tst (lambda () (define !f (let ((!x ,tst)) (lambda () !x))) (!f)) ,expected)"
-;;;  "`(ok? ',tst (lambda () (define !f (make-iterator (let ((+iterator+ #t)) (lambda () ,tst)))) (iterate !f)) ,expected)"
+  ;;  "`(ok? ',tst (lambda () (define !f (make-iterator (let ((+iterator+ #t)) (lambda () ,tst)))) (iterate !f)) ,expected)"
   "`(ok? ',tst (lambda () (let ((!str (object->string ,tst :readable))) (eval-string !str))) ,expected)"
   "`(ok? ',tst (lambda () (let ((!x 0)) (let-temporarily ((!x #f)) ,tst))) ,expected)"
   "`(ok? ',tst (lambda () (let () (define h! (make-hook '!x)) (set! (hook-functions h!) (list (lambda (!h) (set! (!h 'result) ,tst)))) (h!))) ,expected)"
   "`(ok? ',tst (lambda () (let-temporarily (((*s7* 'autoloading?) #f)) (with-let (sublet (curlet)) ,tst))) ,expected)"
   "`(ok? ',tst (lambda () (let-temporarily (((*s7* 'safety) 1)) ,tst)) ,expected)"
+
   ;; this confuses get-zero-count, but otherwise is ok: `(ok? ',tst (lambda () (gc) ,tst) ,expected)
   ;; these are ok: "`(ok? ',tst (lambda () (define-macro (!m x) `(values ,x)) (!m ,tst)) ,expected)"
   ;;               "`(ok? ',tst (lambda () (let ((!x 0)) (let-temporarily ((!x ,tst)) !x))) ,expected)"
   ))
+
+(let ((aux-file (format #f "t101-aux-~D.scm" (set! aux-counter (+ aux-counter 1)))))
+  (call-with-output-file aux-file
+    (lambda (p)
+      (format p "(set! (*s7* 'debug) 1)~%(set! ((funclet trace-in) '*debug-port*) #f)~%")
+      (format p "(load \"s7test.scm\")~%(exit)~%")))
+  (format *stderr* "~%~NC~%test: debug=1~%" 80 #\-)
+  (system (string-append "./repl " aux-file)))
+
+(let ((aux-file (format #f "t101-aux-~D.scm" (set! aux-counter (+ aux-counter 1)))))
+  (call-with-output-file aux-file
+    (lambda (p)
+      (format p "(set! (*s7* 'debug) 2)~%(set! ((funclet trace-in) '*debug-port*) #f)~%")
+      (format p "(load \"s7test.scm\")~%(exit)~%")))
+  (format *stderr* "~%~NC~%test: debug=2~%" 80 #\-)
+  (system (string-append "./repl " aux-file)))
+
+(let ((aux-file (format #f "t101-aux-~D.scm" (set! aux-counter (+ aux-counter 1)))))
+  (call-with-output-file aux-file
+    (lambda (p)
+      (format p "(set! (*s7* 'profile) 1)~%")
+      (format p "(load \"s7test.scm\")~%(exit)~%")))
+  (format *stderr* "~%~NC~%test: profile=1~%" 80 #\-)
+  (system (string-append "./repl " aux-file)))
 
 #|
 ;; this quits at the quoted circular list (car '#1= (2 . #1#))
